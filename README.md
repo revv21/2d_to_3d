@@ -424,3 +424,132 @@ I can extend this to:
 ✔️ preserve layer / stroke metadata
 ✔️ match with arrowheads & dimensions (very relevant to your current pipeline)
 Just tell me where you want to take it 🚀
+
+Good catch — this output looks wrong for very specific, very SVG-ish reasons, and your screenshot actually tells me almost exactly what’s happening.
+Short version:
+👉 You’re drawing correct geometry with the wrong coordinate transform.
+The primitives are there, but they’re being scaled, shifted, and clipped incorrectly.
+Let’s break it down cleanly.
+What you’re seeing in the output
+From the image:
+Only the top-right corner of the drawing is visible
+Lines look cut off
+Curves look correct locally, but the overall layout is wrong
+Large blank area everywhere else
+This means:
+Geometry extraction ✅ works
+Visualization ❌ has coordinate mapping bugs
+Root causes (there are usually 3, you likely have all of them)
+1️⃣ SVG coordinate system ≠ image coordinate system
+SVG:
+Origin can be anywhere
+Uses viewBox
+Y axis goes down (same as PIL, but transforms may flip it)
+Your code does:
+Copy code
+Python
+x = (pt[0] - minx) * scale
+y = (pt[1] - miny) * scale
+But you never normalize to the actual bounding box of geometry.
+So:
+If your SVG content lives in [5000, 8000] range
+You’re mapping it into [0, 1024] ➡️ everything collapses into a corner
+2️⃣ You trust viewBox, but engineering SVGs often lie
+In CAD-generated SVGs:
+viewBox is often missing, wrong, or huge
+Real geometry bounds ≠ viewBox
+That’s why only a slice appears.
+✅ Correct approach: compute bounds from actual geometry points.
+3️⃣ No Y-axis inversion (often required)
+Many CAD SVGs are exported with:
+Y increasing upwards
+PIL expects Y increasing downwards
+This causes vertical mirroring or clipping.
+The fix (this will solve your output immediately)
+✅ Step 1: Compute true geometry bounds
+Add this after extraction:
+Copy code
+Python
+def compute_bounds(lines, arcs, curves):
+    xs, ys = [], []
+
+    for p1, p2 in lines:
+        xs += [p1[0], p2[0]]
+        ys += [p1[1], p2[1]]
+
+    for seg in arcs + curves:
+        for x, y in seg:
+            xs.append(x)
+            ys.append(y)
+
+    return min(xs), min(ys), max(xs), max(ys)
+✅ Step 2: Correct transform (THIS is the missing piece)
+Replace your tx() with this:
+Copy code
+Python
+def make_transform(bounds, img_size, padding=20):
+    minx, miny, maxx, maxy = bounds
+
+    w = maxx - minx
+    h = maxy - miny
+
+    scale = min(
+        (img_size - 2 * padding) / w,
+        (img_size - 2 * padding) / h
+    )
+
+    def tx(pt):
+        x = (pt[0] - minx) * scale + padding
+        y = (pt[1] - miny) * scale + padding
+        return (x, y)
+
+    return tx
+Usage:
+Copy code
+Python
+bounds = compute_bounds(lines, arcs, curves)
+tx = make_transform(bounds, out_size)
+✅ Step 3: (Optional but often needed) Flip Y axis
+If output is vertically inverted:
+Copy code
+Python
+def tx(pt):
+    x = (pt[0] - minx) * scale + padding
+    y = (maxy - pt[1]) * scale + padding  # Y flip
+    return (x, y)
+Why this exact symptom appears
+Symptom
+Cause
+Only top corner visible
+Geometry far from (0,0)
+Large blank area
+Incorrect normalization
+Curves look correct
+Sampling logic is fine
+Lines clipped
+Scale too large
+Engineering SVG
+No reliable viewBox
+This is extremely common when visualizing CAD → SVG → PIL.
+Sanity check (do this once)
+Print bounds:
+Copy code
+Python
+print("Bounds:", bounds)
+If you see numbers like:
+Copy code
+
+Bounds: (4321.2, 218.0, 9876.5, 6543.1)
+👉 That confirms everything above.
+Bottom line
+❌ The SVG extraction is not the problem
+❌ ImageDraw is not the problem
+✅ Your transform is incomplete
+✅ Bounding-box normalization fixes it
+If you want, next we can:
+auto-detect Y flip
+preserve stroke widths
+export to DXF
+tag arcs vs circles (important for dimensions)
+align this with your arrowhead/leader logic
+You’re actually very close — this is the last “SVG gotcha” layer.
