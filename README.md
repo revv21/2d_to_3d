@@ -138,3 +138,138 @@ Paste the feature counters
 Or upload the SVG (or screenshot)
 I can then tell you exactly whether your view split is correct in one glance.
 You’re now at the last real blocker — after this, it’s smooth sailing.
+
+Yes — and this is exactly the right question to ask at this point.
+We can prove whether view separation is correct with a couple of very concrete, visual checks. No guessing.
+I’ll give you 3 checks, in increasing strength.
+If check #2 passes, your view separation is correct beyond doubt.
+✅ Check 1: Feature-based sanity (quick, logical)
+You already printed counters — let’s formalize what is allowed.
+These must hold always (paper rules)
+View
+Allowed features
+Front
+Px, Py, I, A
+Bottom
+Px, Pz, I, A
+Left
+Py, Pz, I, A
+🚨 Add this assertion (DO THIS)
+Copy code
+Python
+def assert_view_features(Ef, Eb, El):
+    for e in Ef:
+        assert e["feature"] in {"Px", "Py", "I", "A"}, f"Invalid in front: {e['feature']}"
+    for e in Eb:
+        assert e["feature"] in {"Px", "Pz", "I", "A"}, f"Invalid in bottom: {e['feature']}"
+    for e in El:
+        assert e["feature"] in {"Py", "Pz", "I", "A"}, f"Invalid in left: {e['feature']}"
+
+assert_view_features(Ef, Eb, El)
+✅ If this does not throw, separation is logically consistent.
+❌ If it throws:
+your split is wrong
+or views are swapped
+✅ Check 2: VISUAL proof (most important)
+We will draw the three views in different colors in 2D.
+If separation is correct, you should visually see:
+Front view clustered in one region
+Bottom in another
+Left in another
+with zero overlap
+🔧 Add this file: debug_views.py
+Copy code
+Python
+import matplotlib.pyplot as plt
+
+def plot_views(Ef, Eb, El):
+    plt.figure(figsize=(8, 8))
+
+    def draw(edges, color, label):
+        for e in edges:
+            pts = e["points"]
+            xs = [p[0] for p in pts]
+            ys = [p[1] for p in pts]
+            plt.plot(xs, ys, color=color, linewidth=1)
+        plt.plot([], [], color=color, label=label)
+
+    draw(Ef, "red", "Front")
+    draw(Eb, "green", "Bottom")
+    draw(El, "blue", "Left")
+
+    plt.legend()
+    plt.gca().set_aspect("equal", adjustable="box")
+    plt.title("View Separation Check")
+    plt.show()
+▶️ Call it from main.py
+Copy code
+Python
+from debug_views import plot_views
+plot_views(Ef, Eb, El)
+✅ What a CORRECT result looks like
+Red, green, blue groups are spatially disjoint
+Each group forms a complete orthographic view
+No edge appears in two colors
+❌ What an INCORRECT result looks like
+Colors overlap
+Same geometry appears in multiple colors
+Views stacked on top of each other
+This visual test is absolute proof.
+✅ Check 3: Bounding-box geometry test (paper-faithful)
+In a valid orthographic drawing:
+Front & Bottom share X extents
+Front & Left share Y extents
+Bottom & Left share Z extents
+Let’s verify that numerically.
+🔧 Add this diagnostic
+Copy code
+Python
+def bbox_of_edges(edges):
+    xs, ys = [], []
+    for e in edges:
+        for x, y in e["points"]:
+            xs.append(x)
+            ys.append(y)
+    return min(xs), max(xs), min(ys), max(ys)
+
+bf = bbox_of_edges(Ef)
+bb = bbox_of_edges(Eb)
+bl = bbox_of_edges(El)
+
+print("Front bbox :", bf)
+print("Bottom bbox:", bb)
+print("Left bbox  :", bl)
+Expected relationships (approximately):
+bf.x-range ≈ bb.x-range
+bf.y-range ≈ bl.y-range
+bb.y-range ≈ bl.x-range  ← because bottom uses Z
+If these do not roughly match → view separation is wrong.
+🎯 Interpreting YOUR current situation
+From your earlier counters:
+Front & Bottom look reasonable
+Left has geometry but is noisy
+That strongly suggests:
+View separation is likely correct,
+but Left view geometry is slightly rotated / noisy, hence I
+The visualization in Check 2 will confirm this instantly.
+🚀 What to do next (decision tree)
+After running plot_views:
+Case A — Views clearly separated ✅
+➡️ Separation is correct
+➡️ Remaining issue = tolerance & snapping (which we already identified)
+Case B — Views overlap ❌
+➡️ Split logic is wrong
+➡️ We fix clustering (I can give a robust k-means / bbox-based splitter)
+🧠 Why this matters
+If view separation is wrong:
+No amount of pattern matching will ever work
+If separation is right:
+Stage-1 will converge
+L7 will drop
+Wireframe appears
+👉 Do this now:
+Run plot_views(Ef, Eb, El)
+Tell me:
+“Colors overlap” or
+“Three clean clusters”
+From that single answer, I’ll tell you the exact next fix in one step.
