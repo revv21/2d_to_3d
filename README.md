@@ -273,3 +273,154 @@ Tell me:
 “Colors overlap” or
 “Three clean clusters”
 From that single answer, I’ll tell you the exact next fix in one step.
+
+
+Yep — this is very doable 👍
+Below is a clean, end-to-end Python example that:
+Parses an SVG
+Extracts all primitives
+straight lines
+circular arcs
+Bézier curves (quadratic + cubic)
+Visualizes everything using PIL.ImageDraw
+This uses svgpathtools, which is the right tool for geometric SVG parsing.
+1️⃣ Install dependencies
+Copy code
+Bash
+pip install svgpathtools pillow numpy
+2️⃣ Core idea
+SVG paths are broken into segments:
+Line
+Arc
+QuadraticBezier
+CubicBezier
+We:
+Sample points from curves/arcs
+Draw them as polylines in ImageDraw (since PIL has no native arc-from-SVG support)
+3️⃣ Full working code
+Copy code
+Python
+import numpy as np
+from PIL import Image, ImageDraw
+from svgpathtools import svg2paths2, Line, Arc, CubicBezier, QuadraticBezier
+
+# ----------------------------
+# Helpers
+# ----------------------------
+
+def complex_to_xy(z):
+    return (float(z.real), float(z.imag))
+
+
+def sample_segment(seg, n=50):
+    """
+    Sample n points uniformly along any svgpathtools segment
+    """
+    ts = np.linspace(0, 1, n)
+    return [complex_to_xy(seg.point(t)) for t in ts]
+
+
+# ----------------------------
+# SVG extraction
+# ----------------------------
+
+def extract_primitives(svg_path):
+    paths, attributes, svg_attr = svg2paths2(svg_path)
+
+    lines = []
+    arcs = []
+    curves = []
+
+    for path in paths:
+        for seg in path:
+            if isinstance(seg, Line):
+                lines.append((
+                    complex_to_xy(seg.start),
+                    complex_to_xy(seg.end)
+                ))
+
+            elif isinstance(seg, Arc):
+                arcs.append(sample_segment(seg, n=80))
+
+            elif isinstance(seg, (CubicBezier, QuadraticBezier)):
+                curves.append(sample_segment(seg, n=80))
+
+    return lines, arcs, curves, svg_attr
+
+
+# ----------------------------
+# Visualization
+# ----------------------------
+
+def visualize(lines, arcs, curves, svg_attr, out_size=1024):
+    # SVG viewBox handling
+    if "viewBox" in svg_attr:
+        vb = list(map(float, svg_attr["viewBox"].split()))
+        minx, miny, w, h = vb
+    else:
+        minx, miny = 0, 0
+        w = float(svg_attr.get("width", out_size))
+        h = float(svg_attr.get("height", out_size))
+
+    scale = out_size / max(w, h)
+
+    def tx(pt):
+        x = (pt[0] - minx) * scale
+        y = (pt[1] - miny) * scale
+        return (x, y)
+
+    img = Image.new("RGB", (out_size, out_size), "white")
+    draw = ImageDraw.Draw(img)
+
+    # Draw lines (black)
+    for p1, p2 in lines:
+        draw.line([tx(p1), tx(p2)], fill="black", width=2)
+
+    # Draw arcs (red)
+    for arc_pts in arcs:
+        draw.line([tx(p) for p in arc_pts], fill="red", width=2)
+
+    # Draw curves (blue)
+    for curve_pts in curves:
+        draw.line([tx(p) for p in curve_pts], fill="blue", width=2)
+
+    return img
+
+
+# ----------------------------
+# Main
+# ----------------------------
+
+if __name__ == "__main__":
+    svg_file = "input.svg"
+
+    lines, arcs, curves, svg_attr = extract_primitives(svg_file)
+    img = visualize(lines, arcs, curves, svg_attr)
+
+    img.show()
+    img.save("svg_primitives_visualized.png")
+4️⃣ Color legend
+Primitive
+Color
+Line
+⚫ Black
+Arc
+🔴 Red
+Bézier curves
+🔵 Blue
+5️⃣ Notes (important for engineering drawings)
+SVG arcs are elliptical, not just circles — sampling avoids mistakes.
+PIL cannot render true SVG arcs, so polyline sampling is the correct approach.
+Increase n in sample_segment() for smoother curves.
+If your SVG is Y-axis flipped, you may need:
+Copy code
+Python
+y = out_size - y
+6️⃣ Want upgrades?
+I can extend this to:
+✔️ classify true circles vs arcs
+✔️ detect radius/diameter leader connections
+✔️ export everything as DXF
+✔️ preserve layer / stroke metadata
+✔️ match with arrowheads & dimensions (very relevant to your current pipeline)
+Just tell me where you want to take it 🚀
