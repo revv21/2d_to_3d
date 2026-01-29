@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="300" height="120"
+     viewBox="0 0 300 120">
+
+  <!-- ================= FRONT VIEW (X,Y) ================= -->
+  <!-- Rectangle: 10 x 6 -->
+  <!-- Positioned at (0,0) -->
+  <g id="front_view" stroke="black" fill="none" stroke-width="1">
+    <line x1="0"  y1="0"  x2="10" y2="0" />
+    <line x1="10" y1="0"  x2="10" y2="6" />
+    <line x1="10" y1="6"  x2="0"  y2="6" />
+    <line x1="0"  y1="6"  x2="0"  y2="0" />
+  </g>
+
+  <!-- ================= BOTTOM VIEW (X,Z) ================= -->
+  <!-- Rectangle: 10 x 4 -->
+  <!-- Shifted right -->
+  <g id="bottom_view" stroke="black" fill="none" stroke-width="1"
+     transform="translate(100,0)">
+    <line x1="0"  y1="0"  x2="10" y2="0" />
+    <line x1="10" y1="0"  x2="10" y2="4" />
+    <line x1="10" y1="4"  x2="0"  y2="4" />
+    <line x1="0"  y1="4"  x2="0"  y2="0" />
+  </g>
+
+  <!-- ================= LEFT VIEW (Z,Y) ================= -->
+  <!-- Rectangle: 4 x 6 -->
+  <!-- Shifted further right -->
+  <g id="left_view" stroke="black" fill="none" stroke-width="1"
+     transform="translate(200,0)">
+    <line x1="0"  y1="0"  x2="4"  y2="0" />
+    <line x1="4"  y1="0"  x2="4"  y2="6" />
+    <line x1="4"  y1="6"  x2="0"  y2="6" />
+    <line x1="0"  y1="6"  x2="0"  y2="0" />
+  </g>
+
+</svg>
