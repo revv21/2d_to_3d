@@ -153,3 +153,99 @@ Validate one reconstructed 3D edge against the drawing
 Add automatic unit scaling
 Move to Stage 2 (loop detection)
 You’re doing this exactly the right way — slow, careful, and correct.
+
+
+from svgpathtools import svg2paths2, Line, Arc
+import numpy as np
+
+
+# ---------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------
+
+def flip_y(points):
+    """SVG Y-axis points down → flip to Cartesian"""
+    return [(x, -y) for (x, y) in points]
+
+
+def bbox(points):
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def normalize_edges(edges):
+    """
+    Translate all edges so that the view's bounding box
+    lower-left corner becomes (0,0).
+    """
+    all_pts = [p for e in edges for p in e["points"]]
+    xmin, ymin, _, _ = bbox(all_pts)
+
+    normalized = []
+    for e in edges:
+        pts = [ (x - xmin, y - ymin) for (x, y) in e["points"] ]
+        normalized.append({
+            "type": e["type"],
+            "points": pts
+        })
+    return normalized
+
+
+# ---------------------------------------------------------
+# Core parsing
+# ---------------------------------------------------------
+
+def parse_svg_views(svg_path):
+    """
+    Returns:
+        front_edges, bottom_edges, left_edges
+    Each is a list of edges with normalized coordinates.
+    """
+
+    paths, attributes, _ = svg2paths2(svg_path)
+
+    # Group edges by SVG <g> id
+    groups = {}
+
+    for path, attr in zip(paths, attributes):
+        gid = attr.get("id", "ungrouped")
+
+        if gid not in groups:
+            groups[gid] = []
+
+        for seg in path:
+            if isinstance(seg, Line):
+                pts = [
+                    (seg.start.real, seg.start.imag),
+                    (seg.end.real, seg.end.imag)
+                ]
+            elif isinstance(seg, Arc):
+                pts = [
+                    (seg.start.real, seg.start.imag),
+                    (seg.point(0.5).real, seg.point(0.5).imag),
+                    (seg.end.real, seg.end.imag)
+                ]
+            else:
+                continue
+
+            pts = flip_y(pts)
+
+            groups[gid].append({
+                "type": "arc" if isinstance(seg, Arc) else "line",
+                "points": pts
+            })
+
+    # ---- Assign views by group id ----
+    # Expected ids: front_view, bottom_view, left_view
+    try:
+        front = normalize_edges(groups["front_view"])
+        bottom = normalize_edges(groups["bottom_view"])
+        left = normalize_edges(groups["left_view"])
+    except KeyError as e:
+        raise RuntimeError(
+            f"Missing expected SVG group: {e}. "
+            "Expected ids: front_view, bottom_view, left_view"
+        )
+
+    return front, bottom, left
