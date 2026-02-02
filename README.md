@@ -72,7 +72,38 @@ def parse_svg_views(svg_text):
 
             if None in (x1, y1, x2, y2):
                 continue
+import ezdxf
+from ezdxf.addons.drawing import Frontend, RenderContext
+from ezdxf.addons.drawing.svg import SVGBackend
+from ezdxf.addons.drawing.config import Configuration
 
+
+def dxf_to_svg(dxf_path, svg_path):
+    doc = ezdxf.readfile(dxf_path)
+    msp = doc.modelspace()
+
+    ctx = RenderContext(doc)
+    ctx.set_current_layout(msp)
+
+    backend = SVGBackend()
+
+    config = Configuration()
+    config.background = "#ffffff"       # background color
+    config.foreground = "#000000"       # entity color
+    config.lineweight_scaling = 1.0
+    config.min_lineweight = 0.1
+
+    frontend = Frontend(ctx, backend, config)
+    frontend.draw_layout(msp, finalize=True)
+
+    backend.save(svg_path)
+
+
+if __name__ == "__main__":
+    dxf_to_svg(
+        r"C:\Users\inp_revanth\Downloads\X8X00614_all_vectors.dxf",
+        "output.svg"
+    )
             # Flip Y axis (SVG → Cartesian)
             y1 = -y1
             y2 = -y2
