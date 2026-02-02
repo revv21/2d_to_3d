@@ -114,3 +114,40 @@ def parse_svg_views(svg_text):
     left   = normalize_edges(groups[2]["edges"])
 
     return front, bottom, left
+
+
+import ezdxf
+from ezdxf.addons.drawing import Frontend, RenderContext
+from ezdxf.addons.drawing.svg import SVGBackend
+from ezdxf.addons.drawing.config import Configuration
+
+
+def dxf_to_svg(dxf_path, svg_path, scale=1.0):
+    # Load DXF
+    doc = ezdxf.readfile(dxf_path)
+    msp = doc.modelspace()
+
+    # Rendering context
+    ctx = RenderContext(doc)
+    ctx.set_current_layout(msp)
+
+    # SVG backend
+    backend = SVGBackend()
+
+    # Optional render config
+    config = Configuration(
+        background_policy=Configuration.BackgroundPolicy.WHITE,
+        color_policy=Configuration.ColorPolicy.BLACK,
+        lineweight_scaling=1.0,
+    )
+
+    # Render
+    frontend = Frontend(ctx, backend, config)
+    frontend.draw_layout(msp, finalize=True)
+
+    # Save SVG
+    backend.save(svg_path)
+
+
+if __name__ == "__main__":
+    dxf_to_svg("input.dxf", "output.svg")
