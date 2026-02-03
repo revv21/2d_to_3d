@@ -573,3 +573,122 @@ If you want next, I can:
 📤 Export these vectors to DXF / SVG
 ⚡ Speed this up for large industrial drawings
 Just say the word.
+Good catch — this screenshot actually tells us exactly what’s wrong 👍
+Short answer:
+Your “lines” are being classified as curves, so everything is drawn in the same color.
+Let’s break it down precisely and fix it in a principled way.
+🔍 What the image is telling us
+From the plot:
+All vectors look smoothly yellow-ish (your matplotlib default color)
+No clear blue/red separation
+Straight edges (long horizontals, diagonals) should be lines, but aren’t
+So the problem is not visualization.
+It’s classification.
+❌ Root cause (very important)
+Your current logic:
+Copy code
+Python
+mean_k = np.mean(curvature(samples))
+if mean_k < curvature_thresh:
+    return "line"
+else:
+    return "curve"
+This fails in engineering drawings because:
+1️⃣ Skeleton noise ⇒ non-zero curvature
+Even a perfect straight line after:
+thinning
+pixel tracing
+Bézier fitting
+resampling
+will have small curvature spikes due to:
+pixel quantization
+Bézier control point drift
+short strokes (dimension lines, arrows)
+➡️ So mean curvature ≠ 0 for lines.
+2️⃣ Using mean curvature is wrong here
+A straight line with one noisy point → mean curvature becomes non-zero
+The paper avoids this by relying on shape statistics, not raw curvature thresholds.
+✅ Correct way to detect lines (robust)
+Key geometric truth
+A straight line satisfies collinearity, not “zero curvature”.
+So instead of curvature, use:
+Maximum deviation from the end-to-end line
+This is far more stable.
+🧠 Correct criterion (industry standard)
+For sampled points �:
+Take start p0 and end pN
+Compute distance of every point to the line (p0 → pN)
+If max deviation is small → line
+Else → curve
+✅ Drop-in fix (replace classify_vector)
+Copy code
+Python
+def classify_vector(sampled_pts, dist_thresh=1.5):
+    """
+    sampled_pts: (N, 2) array in image coordinates
+    dist_thresh: pixels (tune once, ~1–2 works well)
+    """
+    p0 = sampled_pts[0]
+    p1 = sampled_pts[-1]
+
+    v = p1 - p0
+    v_norm = np.linalg.norm(v)
+    if v_norm < 1e-6:
+        return "curve"
+
+    # distance of each point to the line
+    dists = np.abs(
+        np.cross(v, sampled_pts - p0) / v_norm
+    )
+
+    if np.max(dists) < dist_thresh:
+        return "line"
+    else:
+        return "curve"
+Why this works
+Immune to small Bézier wiggles
+Correctly classifies:
+long edges → line
+arcs → curve
+text strokes → curve
+Matches how CAD kernels reason about geometry
+🧪 Quick sanity check (do this once)
+Print stats:
+Copy code
+Python
+for v in vectors[:10]:
+    print(
+        v["type"],
+        np.max(np.abs(np.cross(
+            v["samples"][-1] - v["samples"][0],
+            v["samples"] - v["samples"][0]
+        )))
+    )
+You’ll see:
+Lines → very small values
+Curves → clearly larger
+🎨 Why your plot was yellow
+Matplotlib detail:
+If you plot both lines + scatter without explicit color, it reuses default color cycle
+Since all vectors were "curve", everything looked identical
+After the fix:
+You’ll see clear blue straight edges
+Red arcs/text
+Exactly like Fig. 6 in the paper
+📌 Paper alignment (important)
+The paper:
+Does NOT rely solely on curvature thresholds
+States that most vectors are straight and curvature is used as a feature, not a hard rule
+(Section 3.2, Table 1)
+Your previous logic was too literal.
+✅ TL;DR
+Why no lines?
+Because curvature-based classification is too fragile
+Skeleton + Bézier noise → everything looks curved
+Fix
+Use max deviation from chord, not mean curvature
+If you want, next I can:
+Overlay line normals for debugging
+Add arc vs spline separation
+Show how this feeds cleanly into Table-1 feature vectors
+You’re actually very close — this is a classic vectorization pitfall, not a mistake.
