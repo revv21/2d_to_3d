@@ -1,4 +1,4 @@
-import xml.etree.ElementTree as ET
+7import xml.etree.ElementTree as ET
 
 
 # -----------------------------
@@ -692,3 +692,9 @@ Overlay line normals for debugging
 Add arc vs spline separation
 Show how this feeds cleanly into Table-1 feature vectors
 You’re actually very close — this is a classic vectorization pitfall, not a mistake.
+
+https://smailiitmacin-my.sharepoint.com/:x:/g/personal/ed22b063_smail_iitm_ac_in/IQATx9dmiLgLSrhO7fnbq3r_AXWp_S5FHtjqWJ3Z2MZn_z4?e=tqfEyv
+
+
+
+One app for all your Word, Excel, PowerPoint and PDF needs. Get the Microsoft 365 Copilot app: https://aka.ms/GetM365
