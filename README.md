@@ -444,3 +444,132 @@ Convert these vectors directly to DXF / SVG
 Build graph edges exactly as EDGNet
 Optimize this to run fast on large drawings
 Just tell me what you want next 🔥
+
+Yep — let’s visualise the extracted vectors cleanly 👍
+I’ll show you exactly how to overlay the vectorized result (lines + curves) on top of the original drawing, with different colors so you can sanity-check your pipeline.
+This is pure visualization — no extra logic added.
+🎯 What we’ll visualize
+Original raster image (faint background)
+Skeleton (optional)
+Vectorized components
+🟦 Straight lines
+🟥 Curves (arcs, circles, text strokes)
+We’ll plot sampled Bézier points, because that’s what the paper uses downstream.
+1️⃣ Visualization helper (Matplotlib)
+Copy code
+Python
+import matplotlib.pyplot as plt
+2️⃣ Visualise vectors (main function)
+Copy code
+Python
+def visualize_vectors(
+    img,
+    vectors,
+    show_skeleton=False,
+    skel=None,
+    point_size=10
+):
+    """
+    img      : original grayscale or RGB image
+    vectors  : list of dicts with keys ['samples', 'type']
+    skel     : skeleton image (optional)
+    """
+
+    plt.figure(figsize=(10, 10))
+
+    # Background image
+    if img.ndim == 2:
+        plt.imshow(img, cmap="gray")
+    else:
+        plt.imshow(img)
+
+    # Optional skeleton overlay
+    if show_skeleton and skel is not None:
+        ys, xs = np.where(skel)
+        plt.scatter(xs, ys, s=1, c="yellow", alpha=0.4)
+
+    # Plot vectors
+    for v in vectors:
+        pts = v["samples"]
+        xs = pts[:, 1]
+        ys = pts[:, 0]
+
+        if v["type"] == "line":
+            plt.plot(xs, ys, "b-", linewidth=2)   # blue
+        else:
+            plt.plot(xs, ys, "r-", linewidth=2)   # red
+
+        # optional sampled points
+        plt.scatter(xs, ys, s=point_size)
+
+    plt.gca().invert_yaxis()  # image coordinate system
+    plt.axis("off")
+    plt.title("Vectorized Drawing (Blue: Lines, Red: Curves)")
+    plt.show()
+3️⃣ How to call it (end-to-end)
+Using the pipeline we already built:
+Copy code
+Python
+img = cv2.imread("drawing.png", cv2.IMREAD_GRAYSCALE)
+
+skel = skeletonize_image(img)
+strokes = trace_strokes(skel)
+
+vectors = []
+for s in strokes:
+    parts = split_at_corners(s)
+    for p in parts:
+        bez = fit_cubic_bezier(p)
+        samples = sample_bezier(bez, n=10)
+        kind = classify_vector(samples)
+        vectors.append({
+            "control_points": bez,
+            "samples": samples,
+            "type": kind
+        })
+
+visualize_vectors(
+    img,
+    vectors,
+    show_skeleton=True,
+    skel=skel
+)
+4️⃣ What you should expect visually
+You should see:
+Contours → long blue segments
+Text strokes → many short red curves
+Circles / arcs → smooth red loops
+Dimension arrows → mix of short lines + curves
+If you see:
+❌ zig-zag curves → corner splitting threshold too low
+❌ curved text classified as line → curvature threshold too high
+❌ broken lines → skeleton gaps or aggressive pruning
+These are normal tuning steps, not logic errors.
+5️⃣ Optional: Visualise control points (debug mode)
+Very useful when debugging Bézier fitting:
+Copy code
+Python
+def visualize_control_points(img, vectors):
+    plt.figure(figsize=(10, 10))
+    plt.imshow(img, cmap="gray")
+
+    for v in vectors:
+        ctrl = v["control_points"]
+        plt.plot(ctrl[:,1], ctrl[:,0], "go--", linewidth=1)
+        plt.scatter(ctrl[:,1], ctrl[:,0], c="green", s=40)
+
+    plt.gca().invert_yaxis()
+    plt.axis("off")
+    plt.title("Cubic Bézier Control Points")
+    plt.show()
+6️⃣ Why this matches the paper
+Uses sampled points, not pixels (Table 1)
+Preserves stroke continuity
+Separates line vs curve before graph construction
+Exactly mirrors Fig. 5 & Fig. 6 behavior
+If you want next, I can:
+🔗 Build the component graph edges
+🧮 Compute Table-1 feature vectors
+📤 Export these vectors to DXF / SVG
+⚡ Speed this up for large industrial drawings
+Just say the word.
